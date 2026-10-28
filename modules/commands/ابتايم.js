@@ -10,7 +10,7 @@ module.exports = {
   config: {
     name: 'ابتايم',
     aliases: ['uptime', 'up', 'stats'],
-    version: '3.0.0',
+    version: '3.1.0',
     author: 'SINKO',
     description: 'عرض حالة النظام بالزخرفة الملكية (للمطور)',
     countDown: 5,
@@ -34,6 +34,9 @@ module.exports = {
     if (!adminList.includes(senderID)) {
       return api.sendMessage("🫦", threadID, messageID);
     }
+
+    // 1. إرسال الرسالة الأولية وتخزين الـ messageID لتعديلها لاحقاً
+    const initialMsg = await api.sendMessage("⏳ | حاضر يا بابا، جاري فحص النظام...", threadID, messageID);
 
     api.setMessageReaction("❄️", messageID, (err) => {}, true);
 
@@ -83,15 +86,15 @@ module.exports = {
 ┆˼𖣔˹┊ الـمـعـالـج ↜｢ ${os.cpus()[0].model.split(' ')[0]} ｣
 ┆˼✅˹┊ الـحـالـة ↜｢ مـتـصل بنجاح ｣
 ╯──────────────⟢ـ
-> ˼👤˹↜ الـمـطـوࢪ : SINKO ↶`;
+> ˼👤˹┊ الـمـطـوࢪ : SINKO ↶`;
 
-      api.sendMessage(message, threadID, () => {
-        api.setMessageReaction("✅", messageID, () => {}, true);
-      }, messageID);
+      // 2. تعديل الرسالة السابقة بالتقرير النهائي
+      await api.editMessage(message, initialMsg.messageID);
+      api.setMessageReaction("✅", messageID, () => {}, true);
 
     } catch (error) {
       console.error('Uptime error:', error);
-      api.sendMessage('❌ حدث خطأ أثناء جلب بيانات راندر.', threadID, messageID);
+      api.editMessage('❌ حدث خطأ أثناء جلب بيانات راندر.', initialMsg.messageID);
     }
   },
 };
