@@ -4,18 +4,17 @@ const path = require('path');
 const crypto = require('crypto');
 const moment = require('moment-timezone');
 
-// 🔑 إعدادات ومفاتيح الذكاء الاصطناعي والـ APIs
-const GEMINI_API_KEY = "AQ.Ab8RN6Jk2LuTVP5Rp67EAT9tbv4ptPda0xqC16KBYfGE7d5HLQ";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 const AZAD_API_BASE = "https://azadx69x.is-a.dev";
 const AZAD_MUSIC_API = "https://azadx69x-all-apis-top.vercel.app/api/sing";
 const MIDJOURNEY_API = "https://azadx69x-all-apis-top.vercel.app/api/mj";
 
 const conversationMemory = {};
 
-/* 🧠 برومبت التوجيه الاحترافي المدمج (Moana Persona) */
-const MOANA_SYSTEM_PROMPT = `
-أنتِ "موانا"، مساعدة ذكية جداً وخلفيتك البرمجية والتحليلية كخبير برمجيات ومحلل أكواد بارع (تماماً مثل Gemini).
+/* 🧠 برومبت التوجيه الاحترافي (Moana Persona) */
+const MOANA_SYSTEM_PROMPT = {
+  role: "system",
+  content: `
+أنتِ "موانا"، مساعدة ذكية جداً وخلفيتك البرمجية والتحليلية كخبير برمجيات ومحلل أكواد بارع.
 إلى جانب الذكاء البرمجي والتحليلي الخارق، أنتِ محترفة في تعديل الصور وفهم محتواها البصري.
 
 طريقة التعامل والأسلوب:
@@ -25,9 +24,9 @@ const MOANA_SYSTEM_PROMPT = `
 - إذا طلب تعديل صورة، قومي بتوجيهه وإفادته.
 - تنهين ردودك دائماً بـ ؛-؛
 - ردودك موزونة، بدون زخرفة، ومباشرة في صلب الكود أو التحليل.
-`;
+`
+};
 
-// دالة جلب رابط سيرفر الأغاني الأول من جيت هاب
 const getUllashBaseUrl = async () => {
   try {
     const res = await axios.get("https://raw.githubusercontent.com/cyber-ullash/cyber-ullash/refs/heads/main/UllashApi.json", { timeout: 4000 });
@@ -35,7 +34,6 @@ const getUllashBaseUrl = async () => {
   } catch (e) { return null; }
 };
 
-// دالة جلب السيرفر الثالث لتعديل الصور (Hakim)
 const getHakimBaseUrl = async () => {
   try {
     const base = await axios.get("https://raw.githubusercontent.com/mahmudx7/HINATA/main/baseApiUrl.json", { timeout: 4000 });
@@ -43,7 +41,6 @@ const getHakimBaseUrl = async () => {
   } catch (e) { return null; }
 };
 
-// دالة الترجمة التلقائية للصور والتوليد لضمان أعلى دقة
 const translateText = async (text) => {
   try {
     const res = await axios.get(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(text)}`, { timeout: 5000 });
@@ -55,7 +52,7 @@ module.exports = {
   config: {
     name: "موانا",
     aliases: ["moana", "مواني"],
-    version: "72.0.0",
+    version: "74.0.0",
     author: "SINKO & Azad & Hakim",
     countDown: 3,
     prefix: false,
@@ -66,7 +63,9 @@ module.exports = {
     const { threadID, messageID, type, messageReply, senderID } = event;
     let query = args.join(" ").trim();
 
-    if (!conversationMemory[threadID]) conversationMemory[threadID] = [];
+    if (!conversationMemory[threadID]) {
+      conversationMemory[threadID] = [MOANA_SYSTEM_PROMPT];
+    }
 
     const cachePathDir = path.join(__dirname, 'cache');
     fs.ensureDirSync(cachePathDir);
@@ -98,7 +97,7 @@ module.exports = {
       if (cleanDrawQuery) return handleMidjourneyDraw(api, event, cleanDrawQuery);
     }
 
-    // ─── [ 4. تحليل الصورة برمجياً لو وجدت بدون أوامر تعديل ] ───
+    // ─── [ 4. تحليل الصورة برمجياً لو وجدت ] ───
     let analysisResult = "";
     if (imageUrl) {
       api.setMessageReaction("🔍", messageID, () => {}, true);
@@ -115,7 +114,7 @@ module.exports = {
       } catch (err) { console.error("Analysis failed:", err.message); }
     }
 
-    // ─── [ 5. معالجة الشات والذكاء الاصطناعي عبر Gemini API ] ───
+    // ─── [ 5. معالجة الشات والذكاء الاصطناعي بطريقة كيفن السريعة ] ───
     api.setMessageReaction("🧠", messageID, () => {}, true);
 
     try {
@@ -134,46 +133,50 @@ module.exports = {
 
       const formattedUserQuery = `[${userName}]: ${finalInput}`;
 
-      // هيكل الطلب المباشر والمستقر لـ Gemini API
-      const contents = [
-        {
-          role: "user",
-          parts: [
-            { text: `${MOANA_SYSTEM_PROMPT}\n\nالسياق والمحادثة السابقة:\n${conversationMemory[threadID]?.map(m => `${m.role}: ${m.content}`).join("\n") || ""}\n\nالرسالة الحالية من المستخدم: ${formattedUserQuery}` }
-          ]
-        }
-      ];
+      const history = conversationMemory[threadID];
+      history.push({ role: "user", content: formattedUserQuery });
 
-      const res = await axios.post(GEMINI_URL, {
-        contents: contents,
-        generationConfig: {
-          temperature: 0.5
-        }
-      }, {
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      let aiResponse = res.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-      if (!aiResponse) return api.sendMessage("ما ركزت معاك، قول تاني؟ ؛-؛", threadID, messageID);
-
-      aiResponse = aiResponse.replace(/موانا:/gi, "").trim();
-
-      // حفظ الذاكرة
-      conversationMemory[threadID].push(
-        { role: "user", content: formattedUserQuery },
-        { role: "assistant", content: aiResponse }
-      );
-      if (conversationMemory[threadID].length > 16) {
-        conversationMemory[threadID] = conversationMemory[threadID].slice(-8);
+      if (history.length > 20) {
+        history.splice(1, history.length - 20);
       }
 
-      // إذا كان الرد يحتوي على أمر رسم داخلي تلقائي
+      const boundary = "----WebKitFormBoundary" + Math.random().toString(36).substring(2);
+      let formData = "";
+      formData += `--${boundary}\r\nContent-Disposition: form-data; name="chat_style"\r\n\r\nchat\r\n`;
+      formData += `--${boundary}\r\nContent-Disposition: form-data; name="chatHistory"\r\n\r\n${JSON.stringify(history)}\r\n`;
+      formData += `--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nstandard\r\n`;
+      formData += `--${boundary}\r\nContent-Disposition: form-data; name="hacker_is_stinky"\r\n\r\nvery_stinky\r\n`;
+      formData += `--${boundary}\r\nContent-Disposition: form-data; name="enabled_tools"\r\n\r\n[]\r\n`;
+      formData += `--${boundary}--\r\n`;
+
+      const response = await axios({
+        method: "POST",
+        url: "https://api.deepai.org/hacking_is_a_serious_crime",
+        headers: {
+          "content-type": `multipart/form-data; boundary=${boundary}`,
+          origin: "https://deepai.org",
+          "user-agent": "Mozilla/5.0"
+        },
+        data: formData
+      });
+
+      let aiResponse = "";
+      if (response.data) {
+        if (typeof response.data === "string") aiResponse = response.data;
+        else if (response.data.output) aiResponse = response.data.output;
+        else if (response.data.text) aiResponse = response.data.text;
+      }
+
+      aiResponse = aiResponse.replace(/\\n/g, "\n").replace(/\\"/g, '"').trim();
+      if (!aiResponse) aiResponse = "ما ركزت معاك، قول تاني؟ ؛-؛";
+
+      history.push({ role: "assistant", content: aiResponse });
+
       if (aiResponse.includes("DRAW:")) {
         const enDescription = aiResponse.split("DRAW:")[1].trim();
         return handleDrawing(api, event, query || "تصميم برمجى", enDescription);
       }
 
-      // ─── [ فحص هل طلب المستخدم الرد بصوت؟ ] ───
       const voiceKeywords = ["بصوت", "صوت", "سجلي", "قولي", "بصمة", "اشرحي بصوت"];
       const wantsVoice = voiceKeywords.some(word => query.toLowerCase().includes(word));
 
@@ -195,13 +198,9 @@ module.exports = {
               global.client.handleReply.push({ name: "موانا", messageID: info.messageID, author: senderID });
             }
           }, messageID);
-
-        } catch (ttsErr) {
-          console.error("TTS System Failed:", ttsErr.message);
-        }
+        } catch (ttsErr) { console.error("TTS Failed:", ttsErr.message); }
       }
 
-      // الرد النصي العادي
       return api.sendMessage(aiResponse, threadID, (err, info) => {
         if (!err && global.client?.handleReply) {
           global.client.handleReply.push({ name: "موانا", messageID: info.messageID, author: senderID });
@@ -209,53 +208,40 @@ module.exports = {
       }, messageID);
 
     } catch (error) {
-      console.error("Moana Core Error Detail:", JSON.stringify(error.response?.data || error.message, null, 2));
-      api.sendMessage("الشبكة تعبانة شوية أو المفتاح محتاج مراجعة، جرب تاني ؛-؛", threadID, messageID);
+      console.error("Moana Core Error:", error.message);
+      api.sendMessage("الشبكة تعبانة شوية، جرب تاني ؛-؛", threadID, messageID);
     }
   },
 
   onReply: async function ({ api, event, handleReply }) {
     const { threadID, messageID, body, senderID } = event;
     if (handleReply.author !== senderID) return;
-
-    if (handleReply.type === "music_selection") {
-      return handleMusicDownload(api, event, handleReply);
-    }
-
+    if (handleReply.type === "music_selection") return handleMusicDownload(api, event, handleReply);
     return this.onStart({ api, event, args: [body] });
   }
 };
 
-// ─── [ 🛠️ كود تعديل الصور بـ 3 سيرفرات متبادلة ] ───
 async function handleImageEditFallback(api, event, promptAr, imageUrl) {
   const { threadID, messageID } = event;
   api.setMessageReaction("⌛", messageID, () => {}, true);
-  
   const waitMsg = await api.sendMessage(`> ˼🌌˹↜  Aplin Edit  ↶\nجاري تعديل صورتك والترجمة...`, threadID, messageID);
   const cachePath = path.join(__dirname, "cache", `edit_${crypto.randomBytes(4).toString('hex')}.png`);
-
   const promptEn = await translateText(promptAr);
   const hakimBaseURL = await getHakimBaseUrl();
 
   const servers = [
-    { name: "السيرفر الأول (Uncensored SD)", url: `https://uncensored-sd.onrender.com/api/sd?prompt=${encodeURIComponent(promptEn)}&imageUrl=${encodeURIComponent(imageUrl)}&v=${crypto.randomBytes(4).toString('hex')}`, method: "GET", responseType: "stream" },
-    { name: "السيرفر الثاني (Azad API)", url: `https://azadx69x.is-a.dev/api/editor?url=${encodeURIComponent(imageUrl)}&prompt=${encodeURIComponent(promptEn)}`, method: "GET", responseType: "stream" }
+    { name: "SD", url: `https://uncensored-sd.onrender.com/api/sd?prompt=${encodeURIComponent(promptEn)}&imageUrl=${encodeURIComponent(imageUrl)}&v=${crypto.randomBytes(4).toString('hex')}`, method: "GET", responseType: "stream" },
+    { name: "Azad", url: `https://azadx69x.is-a.dev/api/editor?url=${encodeURIComponent(imageUrl)}&prompt=${encodeURIComponent(promptEn)}`, method: "GET", responseType: "stream" }
   ];
 
   if (hakimBaseURL) {
-    servers.push({ name: "السيرفر الثالث (Hakim API)", url: `${hakimBaseURL}/api/edit`, method: "POST", data: { prompt: promptEn, imageUrl: imageUrl }, responseType: "arraybuffer" });
+    servers.push({ name: "Hakim", url: `${hakimBaseURL}/api/edit`, method: "POST", data: { prompt: promptEn, imageUrl: imageUrl }, responseType: "arraybuffer" });
   }
 
   let success = false;
   for (const server of servers) {
     try {
-      let response;
-      if (server.method === "POST") {
-        response = await axios.post(server.url, server.data, { responseType: server.responseType, timeout: 60000 });
-      } else {
-        response = await axios({ method: 'get', url: server.url, responseType: server.responseType, timeout: 60000 });
-      }
-
+      let response = server.method === "POST" ? await axios.post(server.url, server.data, { responseType: server.responseType, timeout: 60000 }) : await axios({ method: 'get', url: server.url, responseType: server.responseType, timeout: 60000 });
       if (server.responseType === "stream") {
         const writer = fs.createWriteStream(cachePath);
         response.data.pipe(writer);
@@ -264,7 +250,7 @@ async function handleImageEditFallback(api, event, promptAr, imageUrl) {
         await fs.writeFile(cachePath, Buffer.from(response.data, 'binary'));
       }
       success = true; break;
-    } catch (e) { console.log(`[Fallback Edit] فشل: ${server.name}`); }
+    } catch (e) {}
   }
 
   if (success) {
@@ -278,16 +264,14 @@ async function handleImageEditFallback(api, event, promptAr, imageUrl) {
   } else {
     if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
     api.setMessageReaction("❌", messageID, () => {}, true);
-    api.sendMessage("⚠️ كل سيرفرات التعديل مضغوطة حالياً، جرب تاني يا ملك ؛-؛", threadID, messageID);
+    api.sendMessage("⚠️ سيرفرات التعديل مضغوطة حالياً، جرب تاني يا ملك ؛-؛", threadID, messageID);
     if (waitMsg) api.unsendMessage(waitMsg.messageID);
   }
 }
 
-// ─── [ 🎨 كود توليد الصور الاحترافي ] ───
 async function handleMidjourneyDraw(api, event, promptAr) {
   const { threadID, messageID } = event;
   api.setMessageReaction("🎨", messageID, () => {}, true);
-
   const waitMsg = await api.sendMessage(`> ˼🌌˹↜  Aplin Midjourney  ↶\nجاري توليد خيالك بالذكاء الاصطناعي...`, threadID, messageID);
   const cacheDir = path.join(__dirname, "cache");
 
@@ -295,8 +279,7 @@ async function handleMidjourneyDraw(api, event, promptAr) {
     const promptEn = await translateText(promptAr);
     const response = await axios.get(`${MIDJOURNEY_API}?prompt=${encodeURIComponent(promptEn)}`, { timeout: 90000 });
     const result = response.data;
-
-    if (!result.success || !result.data?.images?.length) throw new Error("No images returned");
+    if (!result.success || !result.data?.images?.length) throw new Error("No images");
 
     const attachments = [];
     for (let i = 0; i < result.data.images.length; i++) {
@@ -314,15 +297,13 @@ async function handleMidjourneyDraw(api, event, promptAr) {
       if (!err) api.setMessageReaction("✅", messageID, () => {}, true);
       if (waitMsg) api.unsendMessage(waitMsg.messageID);
     }, messageID);
-
   } catch (err) {
     api.setMessageReaction("❌", messageID, () => {}, true);
-    api.sendMessage("⚠️ سيرفر ميدجيرني مضغوط أو الوصف يحتوي كلمات محظورة يا ملك ؛-؛", threadID, messageID);
+    api.sendMessage("⚠️ سيرفر ميدجيرني مضغوط أو الوصف ممنوع يا ملك ؛-؛", threadID, messageID);
     if (waitMsg) api.unsendMessage(waitMsg.messageID);
   }
 }
 
-// ─── [ 📥 باقي الدوال المساعدة ] ───
 async function handleDrawing(api, event, originalQuery, enDescription) {
   const { threadID, messageID } = event;
   try {
@@ -344,11 +325,11 @@ async function handleMusicSearch(api, event, songQuery) {
   if (ullashUrl) {
     try {
       const searchRes = await axios.get(`${ullashUrl}/ytFullSearch?songName=${encodeURIComponent(songQuery)}`, { timeout: 15000 });
-      if (searchRes.data && searchRes.data.length > 0) {
+      if (searchRes.data?.length > 0) {
         results = searchRes.data.slice(0, 6).map(item => ({ title: item.title, time: item.time, id: item.id, thumbnail: item.thumbnail }));
         usedServer = "ullash";
       }
-    } catch (e) { console.log("[Moana Music] تحويل للسيرفر البديل..."); }
+    } catch (e) {}
   }
 
   if (results.length === 0) {
@@ -359,12 +340,12 @@ async function handleMusicSearch(api, event, songQuery) {
         results.push({ title: info.title, time: info.duration || "غير معروف", id: songQuery, thumbnail: info.image || info.thumbnail || "", directUrl: searchRes.data.audio?.url || null });
         usedServer = "azad";
       }
-    } catch (e) { console.error("[Moana Music] فشل السيرفرات:", e.message); }
+    } catch (e) {}
   }
 
   if (results.length === 0) {
     api.setMessageReaction("❌", messageID, () => {}, true);
-    return api.editMessage('> ⏣ ❌ ما لقيت الأغنية دي.. ذوقك غريب أو السيرفرات واقفة 😒', processingID);
+    return api.editMessage('> ⏣ ❌ ما لقيت الأغنية دي.. السيرفرات واقفة 😒', processingID);
   }
 
   let msg = `> ˼🌌˹↜  Moana Music  ↶\n╮──────────────⟢ـ\n`;
@@ -387,7 +368,6 @@ async function handleMusicSearch(api, event, songQuery) {
   msg += `╯──────────────⟢ـ\n> 📥 رد برقم الأغنية عشان أنزلها ليك يا ملك`;
 
   api.unsendMessage(processingID);
-
   api.sendMessage({ body: msg, attachment: attachments }, threadID, (err, info) => {
     cacheFiles.forEach(f => { if (fs.existsSync(f)) fs.unlinkSync(f); });
     if (!err && global.client?.handleReply) {
@@ -410,7 +390,6 @@ async function handleMusicDownload(api, event, handleReply) {
 
   const selected = handleReply.result[choice - 1];
   const filePath = path.join(__dirname, 'cache', `music_${crypto.randomBytes(4).toString('hex')}.mp3`);
-
   let downloadUrl = null; let success = false;
 
   if (handleReply.usedServer === "ullash" && handleReply.ullashUrl) {
@@ -447,7 +426,7 @@ async function handleMusicDownload(api, event, handleReply) {
   } else {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     api.setMessageReaction("❌", messageID, () => {}, true);
-    api.sendMessage("> ⏣ ❌ الملف حجمه كبير أو السيرفرات تعبانة حالياً، جرب تاني يا وهم 😒", threadID, messageID);
+    api.sendMessage("> ⏣ ❌ الملف حجمه كبير أو السيرفرات واقفة، جرب تاني يا وهم 😒", threadID, messageID);
     api.unsendMessage(loading.messageID);
   }
 }
