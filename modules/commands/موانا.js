@@ -5,8 +5,8 @@ const crypto = require('crypto');
 const moment = require('moment-timezone');
 
 // 🔑 إعدادات ومفاتيح الذكاء الاصطناعي والـ APIs
-const POLLINATIONS_API_KEY = "sk_g909D01Pc9ytnwBOBUlfsftrLpjwSqmu";
-const POLLINATIONS_URL = "https://gen.pollinations.ai/v1/chat/completions";
+const GEMINI_API_KEY = "AQ.Ab8RN6Jk2LuTVP5Rp67EAT9tbv4ptPda0xqC16KBYfGE7d5HLQ";
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 const AZAD_API_BASE = "https://azadx69x.is-a.dev";
 const AZAD_MUSIC_API = "https://azadx69x-all-apis-top.vercel.app/api/sing";
 const MIDJOURNEY_API = "https://azadx69x-all-apis-top.vercel.app/api/mj";
@@ -55,7 +55,7 @@ module.exports = {
   config: {
     name: "موانا",
     aliases: ["moana", "مواني"],
-    version: "70.0.0",
+    version: "72.0.0",
     author: "SINKO & Azad & Hakim",
     countDown: 3,
     prefix: false,
@@ -72,13 +72,13 @@ module.exports = {
     fs.ensureDirSync(cachePathDir);
 
     // ─── [ 1. فحص طلبات الأغاني ] ───
-    const musicKeywords = ["اغنيه", "أغنية", "اغنية", "صوت", "شغل", "نزل", "اسمعني", "غنية"];
+    const musicKeywords = ["اغنيه", "أغنية", "صوت", "شغل", "نزل", "اسمعني", "غنية"];
     if (query && musicKeywords.some(word => query.startsWith(word))) {
       const cleanQuery = query.replace(/^\S+\s*/, "").trim();
       if (cleanQuery) return handleMusicSearch(api, event, cleanQuery);
     }
 
-    // ─── [ 2. فحص وجود صورة (تعديل الصور - نفس كود عدلي المطور) ] ───
+    // ─── [ 2. فحص وجود صورة (تعديل الصور) ] ───
     let imageUrl = "";
     if (type === "message_reply" && messageReply.attachments?.[0]?.type === "photo") {
       imageUrl = messageReply.attachments[0].url;
@@ -115,7 +115,7 @@ module.exports = {
       } catch (err) { console.error("Analysis failed:", err.message); }
     }
 
-    // ─── [ 5. معالجة الشات والذكاء الاصطناعي ] ───
+    // ─── [ 5. معالجة الشات والذكاء الاصطناعي عبر Gemini API ] ───
     api.setMessageReaction("🧠", messageID, () => {}, true);
 
     try {
@@ -134,23 +134,26 @@ module.exports = {
 
       const formattedUserQuery = `[${userName}]: ${finalInput}`;
 
-      const messages = [{ role: "system", content: MOANA_SYSTEM_PROMPT }];
-      const contextHistory = conversationMemory[threadID].slice(-8);
-      messages.push(...contextHistory);
-      messages.push({ role: "user", content: formattedUserQuery });
-
-      const res = await axios.post(POLLINATIONS_URL, {
-        model: "openai",
-        messages: messages,
-        temperature: 0.5
-      }, {
-        headers: {
-          'Authorization': `Bearer ${POLLINATIONS_API_KEY}`,
-          'Content-Type': 'application/json'
+      // هيكل الطلب المباشر والمستقر لـ Gemini API
+      const contents = [
+        {
+          role: "user",
+          parts: [
+            { text: `${MOANA_SYSTEM_PROMPT}\n\nالسياق والمحادثة السابقة:\n${conversationMemory[threadID]?.map(m => `${m.role}: ${m.content}`).join("\n") || ""}\n\nالرسالة الحالية من المستخدم: ${formattedUserQuery}` }
+          ]
         }
+      ];
+
+      const res = await axios.post(GEMINI_URL, {
+        contents: contents,
+        generationConfig: {
+          temperature: 0.5
+        }
+      }, {
+        headers: { 'Content-Type': 'application/json' }
       });
 
-      let aiResponse = res.data?.choices?.[0]?.message?.content?.trim() || "";
+      let aiResponse = res.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
       if (!aiResponse) return api.sendMessage("ما ركزت معاك، قول تاني؟ ؛-؛", threadID, messageID);
 
       aiResponse = aiResponse.replace(/موانا:/gi, "").trim();
@@ -164,7 +167,7 @@ module.exports = {
         conversationMemory[threadID] = conversationMemory[threadID].slice(-8);
       }
 
-      // إذا كان الرد يحتوي على أمر رسم داخلي تلقائي من بولينايشنز
+      // إذا كان الرد يحتوي على أمر رسم داخلي تلقائي
       if (aiResponse.includes("DRAW:")) {
         const enDescription = aiResponse.split("DRAW:")[1].trim();
         return handleDrawing(api, event, query || "تصميم برمجى", enDescription);
@@ -176,7 +179,6 @@ module.exports = {
 
       if (wantsVoice) {
         try {
-          // تنظيف النص من رمز التنهيدة لكي ينطق بشكل صحيح
           const cleanTextForTTS = aiResponse.replace(/؛-؛/g, "").trim();
           const ttsUrl = `${AZAD_API_BASE}/api/voice-tts?text=${encodeURIComponent(cleanTextForTTS)}&voice=girls&language=ar-SA&format=mp3`;
           
@@ -196,11 +198,10 @@ module.exports = {
 
         } catch (ttsErr) {
           console.error("TTS System Failed:", ttsErr.message);
-          // في حال فشل سيرفر الصوت، نرسل النص كخطة بديلة لحماية البوت
         }
       }
 
-      // الرد النصي العادي في حال لم يطلب صوت
+      // الرد النصي العادي
       return api.sendMessage(aiResponse, threadID, (err, info) => {
         if (!err && global.client?.handleReply) {
           global.client.handleReply.push({ name: "موانا", messageID: info.messageID, author: senderID });
@@ -208,8 +209,8 @@ module.exports = {
       }, messageID);
 
     } catch (error) {
-      console.error("Moana Core Error:", error.message);
-      api.sendMessage("الشبكة تعبانة شوية، جرب تاني ؛-؛", threadID, messageID);
+      console.error("Moana Core Error Detail:", JSON.stringify(error.response?.data || error.message, null, 2));
+      api.sendMessage("الشبكة تعبانة شوية أو المفتاح محتاج مراجعة، جرب تاني ؛-؛", threadID, messageID);
     }
   },
 
@@ -225,7 +226,7 @@ module.exports = {
   }
 };
 
-// ─── [ 🛠️ كود تعديل الصور بـ 3 سيرفرات متبادلة - نفس كود عدلي المطور ] ───
+// ─── [ 🛠️ كود تعديل الصور بـ 3 سيرفرات متبادلة ] ───
 async function handleImageEditFallback(api, event, promptAr, imageUrl) {
   const { threadID, messageID } = event;
   api.setMessageReaction("⌛", messageID, () => {}, true);
@@ -282,7 +283,7 @@ async function handleImageEditFallback(api, event, promptAr, imageUrl) {
   }
 }
 
-// ─── [ 🎨 كود توليد الصور الاحترافي - نفس كود ميدجيرني المطور ] ───
+// ─── [ 🎨 كود توليد الصور الاحترافي ] ───
 async function handleMidjourneyDraw(api, event, promptAr) {
   const { threadID, messageID } = event;
   api.setMessageReaction("🎨", messageID, () => {}, true);
@@ -321,7 +322,7 @@ async function handleMidjourneyDraw(api, event, promptAr) {
   }
 }
 
-// ─── [ 📥 باقي الدوال المساعدة (الرسم التلقائي + الأغاني) ] ───
+// ─── [ 📥 باقي الدوال المساعدة ] ───
 async function handleDrawing(api, event, originalQuery, enDescription) {
   const { threadID, messageID } = event;
   try {
