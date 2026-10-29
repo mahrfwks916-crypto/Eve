@@ -52,7 +52,7 @@ module.exports = {
   config: {
     name: "موانا",
     aliases: ["moana", "مواني"],
-    version: "74.0.0",
+    version: "75.0.0",
     author: "SINKO & Azad & Hakim",
     countDown: 3,
     prefix: false,
@@ -114,7 +114,7 @@ module.exports = {
       } catch (err) { console.error("Analysis failed:", err.message); }
     }
 
-    // ─── [ 5. معالجة الشات والذكاء الاصطناعي بطريقة كيفن السريعة ] ───
+    // ─── [ 5. معالجة الشات والذكاء الاصطناعي ] ───
     api.setMessageReaction("🧠", messageID, () => {}, true);
 
     try {
@@ -177,6 +177,7 @@ module.exports = {
         return handleDrawing(api, event, query || "تصميم برمجى", enDescription);
       }
 
+      // ─── [ فحص هل طلب المستخدم الرد بصوت؟ ] ───
       const voiceKeywords = ["بصوت", "صوت", "سجلي", "قولي", "بصمة", "اشرحي بصوت"];
       const wantsVoice = voiceKeywords.some(word => query.toLowerCase().includes(word));
 
@@ -201,6 +202,7 @@ module.exports = {
         } catch (ttsErr) { console.error("TTS Failed:", ttsErr.message); }
       }
 
+      // الرد النصي العادي
       return api.sendMessage(aiResponse, threadID, (err, info) => {
         if (!err && global.client?.handleReply) {
           global.client.handleReply.push({ name: "موانا", messageID: info.messageID, author: senderID });
