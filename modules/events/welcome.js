@@ -1,7 +1,8 @@
 const { log } = require('../../logger/logger');
-
-// تخزين الأعضاء الذين تم الترحيب بهم لكل قروب
-const welcomedUsers = new Set();
+const axios = require('axios');
+const fs = require('fs-extra');
+const path = require('path');
+const crypto = require('crypto');
 
 // مصفوفة الجمل الترحيبية الفخمة لكسر الملل (تتغير عشوائياً)
 const creativeWelcomes = [
@@ -14,7 +15,7 @@ const creativeWelcomes = [
 module.exports = {
   config: {
     name: 'welcome',
-    version: '5.5',
+    version: '6.0',
     author: 'Edit & Gemini',
     eventType: ['log:subscribe']
   },
@@ -47,20 +48,20 @@ async function sendGroupWelcome(api, threadID, userIDs, authorID) {
   try {
     const threadInfo = await api.getThreadInfo(threadID);
     const mentions = [];
+    const cacheDir = path.join(__dirname, 'cache');
+    fs.ensureDirSync(cacheDir);
     
     // إعداد الوقت والتاريخ بتوقيت الخرطوم
     const dateObj = new Date();
     const time = dateObj.toLocaleTimeString('ar-EG', { timeZone: 'Africa/Khartoum', hour12: true, hour: '2-digit', minute: '2-digit' });
     const dayName = dateObj.toLocaleDateString('ar-EG', { timeZone: 'Africa/Khartoum', weekday: 'long' });
     
-    // التعديل الذكي الأول: جلب الساعة لتحديد تحية الصباح أو المساء
     const hourInKhartoum = parseInt(dateObj.toLocaleTimeString('en-US', { timeZone: 'Africa/Khartoum', hour: '2-digit', hour12: false }));
     const timeGreeting = (hourInKhartoum >= 5 && hourInKhartoum < 12) ? "صباح الخير والمسرات ☀️" : "مساء النور والسرور ✨";
 
-    // التعديل الذكي الثاني: اختيار جملة ترحيبية فخمة بشكل عشوائي
     const randomWelcomeText = creativeWelcomes[Math.floor(Math.random() * creativeWelcomes.length)];
 
-    // جلب معلومات المضيف بشكل صحيح
+    // جلب معلومات المضيف
     const authorInfo = await api.getUserInfo(authorID);
     const adderName = authorInfo?.[authorID]?.name || "المسؤول";
     const adderTag = `@${adderName}`;
@@ -68,8 +69,29 @@ async function sendGroupWelcome(api, threadID, userIDs, authorID) {
 
     const threadName = threadInfo.threadName || "المجموعة";
 
-    // --- [ تصميم الترحيب المطور بزخرفة بوتك وبلمسة فخمة ] ---
-    let bodyText = `> ˼✨˹↜ تـرحـيـب APLIN ↶\n`;
+    // جلب بيانات أول عضو مضاف عشان نعمل ليه الصورة الهيبة
+    const targetUserID = userIDs[0];
+    const targetUserInfo = await api.getUserInfo(targetUserID);
+    const targetName = targetUserInfo?.[targetUserID]?.name || "عضو جديد";
+    
+    // رابط صورة العضو الشخصية من فيسبوك
+    const userAvatarUrl = `https://graph.facebook.com/${targetUserID}/picture?height=720&width=720&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`;
+
+    let welcomeCardPath = null;
+
+    try {
+      // استخدام سيرفر ترحيب جاهز وفخم لدمج صورة العضو في خلفية هيبة
+      const cardApiUrl = `https://api.popcat.xyz/welcomecard?background=https://cdn.wallpapersafari.com/39/38/z5R8s7.jpg&avatar=${encodeURIComponent(userAvatarUrl)}&text1=WELCOME&text2=${encodeURIComponent(targetName)}&text3=To+${encodeURIComponent(threadName)}`;
+      
+      const imgRes = await axios.get(cardApiUrl, { responseType: 'arraybuffer', timeout: 15000 });
+      welcomeCardPath = path.join(cacheDir, `welcome_${crypto.randomBytes(4).toString('hex')}.png`);
+      fs.writeFileSync(welcomeCardPath, Buffer.from(imgRes.data));
+    } catch (err) {
+      console.log("[Welcome Card Error]: ", err.message);
+    }
+
+    // --- [ تصميم النص المطور للترحيب ] ---
+    let bodyText = `> ˼✨˹↜ تـرحـيـب APLIN الهيبة ↶\n`;
     bodyText += `╮──────────────⟢ـ\n`;
     bodyText += `┆˼👋˹┊ التـحـيـة ↜｢ ${timeGreeting} ｣\n`;
     bodyText += `┆˼👤˹┊ الـمـضـيـف ↜｢ ${adderTag} ｣\n`;
@@ -92,13 +114,27 @@ async function sendGroupWelcome(api, threadID, userIDs, authorID) {
     }
 
     bodyText += `​❆˹┊ ⸻⸻⸻⸻⸻\n`;
-    bodyText += `🗣️˹┊ ${randomWelcomeText}\n`; // سطر الجملة العشوائية المتغيرة
+    bodyText += `🗣️˹┊ ${randomWelcomeText}\n`;
     bodyText += `╯──────────────⟢ـ\n`;
     bodyText += `┊˼📊˹┊ الـعـدد الآن ↜ ${threadInfo.participantIDs.length}\n`;
-    bodyText += `┊˼🌟˹┊ سُعداء بوجودكم معنا! | ✅`;
+    bodyText += `┊˼🌟˹┊ منورنا يا ملك! | ✅`;
 
-    // إرسال الرسالة النصية الفخمة والمعدلة بالكامل
-    await api.sendMessage({ body: bodyText, mentions }, threadID);
+    const messagePayload = {
+      body: bodyText,
+      mentions: mentions
+    };
+
+    // لو الصورة اتصممت بنجاح، نضيفها كمرفق (Attachment) مع الرسالة
+    if (welcomeCardPath && fs.existsSync(welcomeCardPath)) {
+      messagePayload.attachment = fs.createReadStream(welcomeCardPath);
+    }
+
+    // إرسال الرسالة مع الصورة والمنشنات
+    await api.sendMessage(messagePayload, threadID, () => {
+      if (welcomeCardPath && fs.existsSync(welcomeCardPath)) {
+        fs.unlinkSync(welcomeCardPath);
+      }
+    });
 
   } catch (error) {
     log('error', `sendGroupWelcome error: ${error.message}`);
