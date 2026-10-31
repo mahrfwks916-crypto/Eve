@@ -52,7 +52,7 @@ module.exports = {
   config: {
     name: "موانا",
     aliases: ["moana", "مواني"],
-    version: "75.0.0",
+    version: "75.1.0",
     author: "SINKO & Azad & Hakim",
     countDown: 3,
     prefix: false,
@@ -177,16 +177,16 @@ module.exports = {
         return handleDrawing(api, event, query || "تصميم برمجى", enDescription);
       }
 
-      // ─── [ فحص هل طلب المستخدم الرد بصوت؟ ] ───
-      const voiceKeywords = ["بصوت", "صوت", "سجلي", "قولي", "بصمة", "اشرحي بصوت"];
+      // ─── [ 6. معالجة الرد الصوتي المحسنة والإجبارية ] ───
+      const voiceKeywords = ["بصوت", "صوت", "سجلي", "قولي", "بصمة", "اشرحي", "غني"];
       const wantsVoice = voiceKeywords.some(word => query.toLowerCase().includes(word));
 
       if (wantsVoice) {
         try {
-          const cleanTextForTTS = aiResponse.replace(/؛-؛/g, "").trim();
+          const cleanTextForTTS = aiResponse.replace(/؛-؛/g, "").replace(/[#*`]/g, "").trim();
           const ttsUrl = `${AZAD_API_BASE}/api/voice-tts?text=${encodeURIComponent(cleanTextForTTS)}&voice=girls&language=ar-SA&format=mp3`;
           
-          const ttsRes = await axios.get(ttsUrl, { responseType: "arraybuffer", timeout: 20000 });
+          const ttsRes = await axios.get(ttsUrl, { responseType: "arraybuffer", timeout: 25000 });
           const voicePath = path.join(cachePathDir, `moana_say_${Date.now()}.mp3`);
           fs.writeFileSync(voicePath, Buffer.from(ttsRes.data));
 
@@ -199,10 +199,13 @@ module.exports = {
               global.client.handleReply.push({ name: "موانا", messageID: info.messageID, author: senderID });
             }
           }, messageID);
-        } catch (ttsErr) { console.error("TTS Failed:", ttsErr.message); }
+        } catch (ttsErr) {
+          console.error("TTS Failed:", ttsErr.message);
+          // في حال فشل السيرفر الصوتي، يرسل النص الطبيعي حتى لا يتعطل البوت
+        }
       }
 
-      // الرد النصي العادي
+      // الرد النصي العادي إذا لم يطلب صوت
       return api.sendMessage(aiResponse, threadID, (err, info) => {
         if (!err && global.client?.handleReply) {
           global.client.handleReply.push({ name: "موانا", messageID: info.messageID, author: senderID });
