@@ -10,20 +10,19 @@ const MIDJOURNEY_API = "https://azadx69x-all-apis-top.vercel.app/api/mj";
 
 const conversationMemory = {};
 
-/* 🧠 برومبت التوجيه الاحترافي (Moana Persona) */
+/* 🧠 برومبت التوجيه الاحترافي (Moana Persona - اللغة العربية الفصحى) */
 const MOANA_SYSTEM_PROMPT = {
   role: "system",
   content: `
-أنتِ "موانا"، مساعدة ذكية جداً وخلفيتك البرمجية والتحليلية كخبير برمجيات ومحلل أكواد بارع.
-إلى جانب الذكاء البرمجي والتحليلي الخارق، أنتِ محترفة في تعديل الصور وفهم محتواها البصري.
+أنتِ "موانا"، مساعدة ذكية ومحترفة تتمتعين بخلفية برمجية وتحليلية رفيعة المستوى كخبير برمجيات ومحلل أكواد بارع ومساعد ذكي متكامل.
+إلى جانب الذكاء البرمجي، أنتِ ماهرة في تحليل الصور وفهم محتواها البصري بدقة متناهية.
 
 طريقة التعامل والأسلوب:
-- تتحدثين بالعامية الدارجة السودانية البسيطة والذكية.
-- رصينة، عبقرية، وقادرة على حل المشاكل البرمجية والبرومبتات المعقدة بسهولة وتفكيكها للمستخدم.
-- إذا طلب المستخدم رسم شيء جديد أو تصميم فكرة، ابدئي ردك بكلمة DRAW: متبوعة بوصف دقيق جداً ومفصل ومحترف باللغة الإنجليزية في نفس السطر.
-- إذا طلب تعديل صورة، قومي بتوجيهه وإفادته.
-- تنهين ردودك دائماً بـ ؛-؛
-- ردودك موزونة، بدون زخرفة، ومباشرة في صلب الكود أو التحليل.
+- تتحدثين حصراً باللغة العربية الفصحى الواضحة، المهذبة، والاحترافية.
+- رصينة، دقيقة، وقادرة على حل المشكلات التقنية وتفكيك الأكواد المعقدة بوضوح.
+- إذا سأل المستخدم عن صورة مرفقة (مثل: من أي أنمي، ما هي الشخصية، تفاصيلها)، اعتمدي على التحليل الدقيق. وإن عجزتِ عن معرفتها أو لم تتأكدي من تفاصيلها، قولي باختصار شديد: "لا أعرف" دون أي مبالغة أو إطالة.
+- إذا طلب المستخدم رسم شيء جديد أو تصميم فكرة، ابدئي ردك بكلمة DRAW: متبوعة بوصف دقيق ومفصل ومحترف باللغة الإنجليزية في نفس السطر.
+- تبتعدين عن الزخرفة المبالغ فيها، وتكون ردودك مباشرة ومركزة في صلب الموضوع.
 `
 };
 
@@ -52,7 +51,7 @@ module.exports = {
   config: {
     name: "موانا",
     aliases: ["moana", "مواني"],
-    version: "75.1.0",
+    version: "77.0.0",
     author: "SINKO & Azad & Hakim",
     countDown: 3,
     prefix: false,
@@ -97,7 +96,7 @@ module.exports = {
       if (cleanDrawQuery) return handleMidjourneyDraw(api, event, cleanDrawQuery);
     }
 
-    // ─── [ 4. تحليل الصورة برمجياً لو وجدت ] ───
+    // ─── [ 4. تحليل الصورة بدقة عبر مفتاح البرومبت المدمج ] ───
     let analysisResult = "";
     if (imageUrl) {
       api.setMessageReaction("🔍", messageID, () => {}, true);
@@ -107,11 +106,13 @@ module.exports = {
         
         const analysis = await axios.post(promptApi, {
           imageUrl: imageUrl,
-          prompt: "Analyze this image thoroughly, list technical details, characters or code block visible." 
+          prompt: "Describe this image in detail. Identify characters, anime name, gender, objects, or settings if visible. If uncertain or unable to recognize, state clearly that you don't know."
         }, { headers: { 'Content-Type': 'application/json' } });
         
-        analysisResult = analysis.data.response || "";
-      } catch (err) { console.error("Analysis failed:", err.message); }
+        analysisResult = analysis.data.response || analysis.data.error || "";
+      } catch (err) { 
+        console.error("Analysis failed:", err.message); 
+      }
     }
 
     // ─── [ 5. معالجة الشات والذكاء الاصطناعي ] ───
@@ -120,18 +121,18 @@ module.exports = {
     try {
       let finalInput = query;
       if (analysisResult) {
-        finalInput = `[التحليل البصري للصورة المرفقة: ${analysisResult}]\nطلب المستخدم: ${query || "حللي هذه الصورة برمجياً وتقنياً"}`;
+        finalInput = `[التحليل الدقيق للصورة المرفقة: ${analysisResult}]\nطلب المستخدم بخصوص الصورة أو النص: ${query || "ما الذي تظهره هذه الصورة؟"}`;
       }
 
-      if (!finalInput) return api.sendMessage("هلا كيف اخدمك ؛-؛", threadID, messageID);
+      if (!finalInput && !imageUrl) return api.sendMessage("أهلاً بك، كيف يمكنني مساعدتك اليوم؟", threadID, messageID);
 
-      let userName = "زول";
+      let userName = "المستخدم";
       try {
         const info = await api.getUserInfo(senderID);
         if (info?.[senderID]?.name) userName = info[senderID].name.split(" ")[0];
       } catch {}
 
-      const formattedUserQuery = `[${userName}]: ${finalInput}`;
+      const formattedUserQuery = `[${userName}]: ${finalInput || "ما هي هذه الصورة؟"}`;
 
       const history = conversationMemory[threadID];
       history.push({ role: "user", content: formattedUserQuery });
@@ -168,7 +169,7 @@ module.exports = {
       }
 
       aiResponse = aiResponse.replace(/\\n/g, "\n").replace(/\\"/g, '"').trim();
-      if (!aiResponse) aiResponse = "ما ركزت معاك، قول تاني؟ ؛-؛";
+      if (!aiResponse) aiResponse = "لا أعرف.";
 
       history.push({ role: "assistant", content: aiResponse });
 
@@ -177,13 +178,13 @@ module.exports = {
         return handleDrawing(api, event, query || "تصميم برمجى", enDescription);
       }
 
-      // ─── [ 6. معالجة الرد الصوتي المحسنة والإجبارية ] ───
+      // ─── [ 6. معالجة الرد الصوتي ] ───
       const voiceKeywords = ["بصوت", "صوت", "سجلي", "قولي", "بصمة", "اشرحي", "غني"];
       const wantsVoice = voiceKeywords.some(word => query.toLowerCase().includes(word));
 
       if (wantsVoice) {
         try {
-          const cleanTextForTTS = aiResponse.replace(/؛-؛/g, "").replace(/[#*`]/g, "").trim();
+          const cleanTextForTTS = aiResponse.replace(/[#*`]/g, "").trim();
           const ttsUrl = `${AZAD_API_BASE}/api/voice-tts?text=${encodeURIComponent(cleanTextForTTS)}&voice=girls&language=ar-SA&format=mp3`;
           
           const ttsRes = await axios.get(ttsUrl, { responseType: "arraybuffer", timeout: 25000 });
@@ -201,11 +202,9 @@ module.exports = {
           }, messageID);
         } catch (ttsErr) {
           console.error("TTS Failed:", ttsErr.message);
-          // في حال فشل السيرفر الصوتي، يرسل النص الطبيعي حتى لا يتعطل البوت
         }
       }
 
-      // الرد النصي العادي إذا لم يطلب صوت
       return api.sendMessage(aiResponse, threadID, (err, info) => {
         if (!err && global.client?.handleReply) {
           global.client.handleReply.push({ name: "موانا", messageID: info.messageID, author: senderID });
@@ -214,7 +213,7 @@ module.exports = {
 
     } catch (error) {
       console.error("Moana Core Error:", error.message);
-      api.sendMessage("الشبكة تعبانة شوية، جرب تاني ؛-؛", threadID, messageID);
+      api.sendMessage("عذراً، الشبكة تواجه بعض البطء. يرجى المحاولة لاحقاً.", threadID, messageID);
     }
   },
 
@@ -229,7 +228,7 @@ module.exports = {
 async function handleImageEditFallback(api, event, promptAr, imageUrl) {
   const { threadID, messageID } = event;
   api.setMessageReaction("⌛", messageID, () => {}, true);
-  const waitMsg = await api.sendMessage(`> ˼🌌˹↜  Aplin Edit  ↶\nجاري تعديل صورتك والترجمة...`, threadID, messageID);
+  const waitMsg = await api.sendMessage(`> ˼🌌˹↜  Aplin Edit  ↶\nجاري تعديل الصورة والترجمة...`, threadID, messageID);
   const cachePath = path.join(__dirname, "cache", `edit_${crypto.randomBytes(4).toString('hex')}.png`);
   const promptEn = await translateText(promptAr);
   const hakimBaseURL = await getHakimBaseUrl();
@@ -260,7 +259,7 @@ async function handleImageEditFallback(api, event, promptAr, imageUrl) {
 
   if (success) {
     const timeNow = moment.tz("Africa/Khartoum");
-    const successBody = `> ˼🌌˹↜  Aplin Edit  ↶\n╮──────────────⟢ـ\n┆ الوصف ↜｢ ${promptAr} ｣\n┆ الـوقـت ↜｢ ${timeNow.format("hh:mm A")} ｣\n╯──────────────⟢ـ\n> ظبطت ليك التعديل مية مية ؛-؛`;
+    const successBody = `> ˼🌌˹↜  Aplin Edit  ↶\n╮──────────────⟢ـ\n┆ الوصف ↜｢ ${promptAr} ｣\n┆ الـوقـت ↜｢ ${timeNow.format("hh:mm A")} ｣\n╯──────────────⟢ـ\n> تم تعديل الصورة بنجاح.`;
     await api.sendMessage({ body: successBody, attachment: fs.createReadStream(cachePath) }, threadID, () => {
       if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
       api.setMessageReaction("✅", messageID, () => {}, true);
@@ -269,7 +268,7 @@ async function handleImageEditFallback(api, event, promptAr, imageUrl) {
   } else {
     if (fs.existsSync(cachePath)) fs.unlinkSync(cachePath);
     api.setMessageReaction("❌", messageID, () => {}, true);
-    api.sendMessage("⚠️ سيرفرات التعديل مضغوطة حالياً، جرب تاني يا ملك ؛-؛", threadID, messageID);
+    api.sendMessage("عذراً، خوادم التعديل مضغوطة حالياً. يرجى المحاولة لاحقاً.", threadID, messageID);
     if (waitMsg) api.unsendMessage(waitMsg.messageID);
   }
 }
@@ -277,7 +276,7 @@ async function handleImageEditFallback(api, event, promptAr, imageUrl) {
 async function handleMidjourneyDraw(api, event, promptAr) {
   const { threadID, messageID } = event;
   api.setMessageReaction("🎨", messageID, () => {}, true);
-  const waitMsg = await api.sendMessage(`> ˼🌌˹↜  Aplin Midjourney  ↶\nجاري توليد خيالك بالذكاء الاصطناعي...`, threadID, messageID);
+  const waitMsg = await api.sendMessage(`> ˼🌌˹↜  Aplin Midjourney  ↶\nجاري توليد الصورة بالذكاء الاصطناعي...`, threadID, messageID);
   const cacheDir = path.join(__dirname, "cache");
 
   try {
@@ -295,7 +294,7 @@ async function handleMidjourneyDraw(api, event, promptAr) {
     }
 
     const timeNow = moment.tz("Africa/Khartoum");
-    const successBody = `> ˼🌌˹↜  Aplin Midjourney  ↶\n╮──────────────⟢ـ\n┆ الـتـخـيـل ↜｢ ${promptAr} ｣\n┆ الـوقـت ↜｢ ${timeNow.format("hh:mm A")} ｣\n╯──────────────⟢ـ\n> رسمت ليك خيالك بدقة عالية ؛-؛`;
+    const successBody = `> ˼🌌˹↜  Aplin Midjourney  ↶\n╮──────────────⟢ـ\n┆ الوصف ↜｢ ${promptAr} ｣\n┆ الـوقـت ↜｢ ${timeNow.format("hh:mm A")} ｣\n╯──────────────⟢ـ\n> تم توليد الصورة بدقة عالية.`;
 
     await api.sendMessage({ body: successBody, attachment: attachments }, threadID, (err) => {
       attachments.forEach(att => { try { if (fs.existsSync(att.path)) fs.unlinkSync(att.path); } catch {} });
@@ -304,7 +303,7 @@ async function handleMidjourneyDraw(api, event, promptAr) {
     }, messageID);
   } catch (err) {
     api.setMessageReaction("❌", messageID, () => {}, true);
-    api.sendMessage("⚠️ سيرفر ميدجيرني مضغوط أو الوصف ممنوع يا ملك ؛-؛", threadID, messageID);
+    api.sendMessage("عذراً، خوادم التوليد مضغوطة أو أن الوصف غير مسموح.", threadID, messageID);
     if (waitMsg) api.unsendMessage(waitMsg.messageID);
   }
 }
@@ -315,14 +314,14 @@ async function handleDrawing(api, event, originalQuery, enDescription) {
     const imgPath = path.join(__dirname, 'cache', `art_${Date.now()}.png`);
     const imgRes = await axios.get(`https://image.pollinations.ai/prompt/${encodeURIComponent(enDescription)}`, { responseType: "arraybuffer" });
     fs.outputFileSync(imgPath, Buffer.from(imgRes.data));
-    api.sendMessage({ body: `رسمت ليك طلبك بدقة عالية: ${originalQuery} ؛-؛`, attachment: fs.createReadStream(imgPath) }, threadID, () => fs.unlinkSync(imgPath), messageID);
-  } catch (e) { api.sendMessage("الرسم فشل، جرب تاني ؛-؛", threadID); }
+    api.sendMessage({ body: `تم رسم الطلب بدقة عالية: ${originalQuery}`, attachment: fs.createReadStream(imgPath) }, threadID, () => fs.unlinkSync(imgPath), messageID);
+  } catch (e) { api.sendMessage("عذراً، فشل عملية الرسم. يرجى المحاولة لاحقاً.", threadID); }
 }
 
 async function handleMusicSearch(api, event, songQuery) {
   const { threadID, messageID, senderID: userId } = event;
   api.setMessageReaction("🔍", messageID, () => {}, true);
-  const infoMsg = await api.sendMessage('> ✾ ┇ جاري البحث عن الأغنية... أصبر شوية 🥱', threadID, messageID);
+  const infoMsg = await api.sendMessage('> ✾ ┇ جاري البحث عن الأغنية المطلوبة...', threadID, messageID);
   const processingID = infoMsg.messageID;
 
   let results = []; let usedServer = ""; let ullashUrl = await getUllashBaseUrl();
@@ -350,14 +349,14 @@ async function handleMusicSearch(api, event, songQuery) {
 
   if (results.length === 0) {
     api.setMessageReaction("❌", messageID, () => {}, true);
-    return api.editMessage('> ⏣ ❌ ما لقيت الأغنية دي.. السيرفرات واقفة 😒', processingID);
+    return api.editMessage('> ⏣ ❌ لم يتم العثور على الأغنية المطلوبة.', processingID);
   }
 
   let msg = `> ˼🌌˹↜  Moana Music  ↶\n╮──────────────⟢ـ\n`;
   let attachments = []; let cacheFiles = [];
 
   for (let i = 0; i < results.length; i++) {
-    msg += `  ${i + 1}. ｢ ${results[i].title} ｣\n┆⏱️ الـزمن: ${results[i].time}\n`;
+    msg += `  ${i + 1}. ｢ ${results[i].title} ｣\n┆⏱️ المدة: ${results[i].time}\n`;
     if (i < results.length - 1) msg += `┆⸻⸻⸻⸻⸻\n`;
 
     if (results[i].thumbnail) {
@@ -370,7 +369,7 @@ async function handleMusicSearch(api, event, songQuery) {
       } catch (e) {}
     }
   }
-  msg += `╯──────────────⟢ـ\n> 📥 رد برقم الأغنية عشان أنزلها ليك يا ملك`;
+  msg += `╯──────────────⟢ـ\n> يرجى الرد برقم الأغنية للتحميل.`;
 
   api.unsendMessage(processingID);
   api.sendMessage({ body: msg, attachment: attachments }, threadID, (err, info) => {
@@ -386,12 +385,12 @@ async function handleMusicDownload(api, event, handleReply) {
   const choice = parseInt(body);
 
   if (isNaN(choice) || choice > handleReply.result.length || choice <= 0) {
-    return api.sendMessage("> ركز يا ملك.. اختر رقم متاح في القائمة فقط 🙄", threadID, messageID);
+    return api.sendMessage("يرجى اختيار رقم متاح في القائمة بشكل صحيح.", threadID, messageID);
   }
 
   api.unsendMessage(handleReply.messageID);
   api.setMessageReaction("📥", messageID, () => {}, true);
-  const loading = await api.sendMessage("> ✾ ┇ جاري تحميل الأغنية.. ثواني بس 📥", threadID);
+  const loading = await api.sendMessage("> ✾ ┇ جاري تحميل الملف الصوتي...", threadID);
 
   const selected = handleReply.result[choice - 1];
   const filePath = path.join(__dirname, 'cache', `music_${crypto.randomBytes(4).toString('hex')}.mp3`);
@@ -422,7 +421,7 @@ async function handleMusicDownload(api, event, handleReply) {
   }
 
   if (success) {
-    const finalMsg = `> ˼🌌˹↜  Moana Music  ↶\n╮──────────────⟢ـ\n┆˼✅˹┊ الـحـالة ↜｢ تم التحميل بنجاح ｣\n┆˼🎵˹┊ الـعنوان ↜｢ ${selected.title} ｣\n╯──────────────⟢ـ\n> 🎧 جـاهـز لـلإسـتـمـاع يا ملك ؛-؛`;
+    const finalMsg = `> ˼🌌˹↜  Moana Music  ↶\n╮──────────────⟢ـ\n┆˼✅˹┊ الحالة ↜｢ تم التحميل بنجاح ｣\n┆˼🎵˹┊ العنوان ↜｢ ${selected.title} ｣\n╯──────────────⟢ـ\n> الملف جاهز للاستماع.`;
     await api.sendMessage({ body: finalMsg, attachment: fs.createReadStream(filePath) }, threadID, () => {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
       api.setMessageReaction("✅", messageID, () => {}, true);
@@ -431,7 +430,7 @@ async function handleMusicDownload(api, event, handleReply) {
   } else {
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     api.setMessageReaction("❌", messageID, () => {}, true);
-    api.sendMessage("> ⏣ ❌ الملف حجمه كبير أو السيرفرات واقفة، جرب تاني يا وهم 😒", threadID, messageID);
+    api.sendMessage("عذراً، فشل تحميل الملف الصوتي أو أن الخوادم لا تستجيب.", threadID, messageID);
     api.unsendMessage(loading.messageID);
   }
 }
